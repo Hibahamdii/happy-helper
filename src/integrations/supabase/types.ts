@@ -14,16 +14,249 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      irrigation_logs: {
+        Row: {
+          created_at: string | null
+          decision_type: string
+          duration_minutes: number
+          executed_at: string | null
+          id: string
+          notes: string | null
+          parcel_id: string
+          water_volume_liters: number
+        }
+        Insert: {
+          created_at?: string | null
+          decision_type: string
+          duration_minutes: number
+          executed_at?: string | null
+          id?: string
+          notes?: string | null
+          parcel_id: string
+          water_volume_liters: number
+        }
+        Update: {
+          created_at?: string | null
+          decision_type?: string
+          duration_minutes?: number
+          executed_at?: string | null
+          id?: string
+          notes?: string | null
+          parcel_id?: string
+          water_volume_liters?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "irrigation_logs_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "parcels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parcels: {
+        Row: {
+          area_hectares: number
+          created_at: string | null
+          crop_type: string
+          description: string | null
+          id: string
+          image_url: string | null
+          location_lat: number
+          location_lng: number
+          name: string
+          owner_id: string
+          soil_type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          area_hectares?: number
+          created_at?: string | null
+          crop_type?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          location_lat: number
+          location_lng: number
+          name: string
+          owner_id: string
+          soil_type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          area_hectares?: number
+          created_at?: string | null
+          crop_type?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          location_lat?: number
+          location_lng?: number
+          name?: string
+          owner_id?: string
+          soil_type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          full_name: string
+          id: string
+          phone: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          full_name?: string
+          id?: string
+          phone?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          full_name?: string
+          id?: string
+          phone?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pumps: {
+        Row: {
+          created_at: string | null
+          flow_rate_lph: number
+          id: string
+          is_active: boolean | null
+          name: string
+          parcel_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          flow_rate_lph?: number
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          parcel_id: string
+        }
+        Update: {
+          created_at?: string | null
+          flow_rate_lph?: number
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          parcel_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pumps_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "parcels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sensor_readings: {
+        Row: {
+          id: string
+          recorded_at: string | null
+          sensor_id: string
+          value: number
+        }
+        Insert: {
+          id?: string
+          recorded_at?: string | null
+          sensor_id: string
+          value: number
+        }
+        Update: {
+          id?: string
+          recorded_at?: string | null
+          sensor_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensor_readings_sensor_id_fkey"
+            columns: ["sensor_id"]
+            isOneToOne: false
+            referencedRelation: "sensors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sensors: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          parcel_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          parcel_id: string
+          type: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          parcel_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensors_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "parcels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: { Args: { _user_id: string }; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "farmer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +383,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "farmer"],
+    },
   },
 } as const
