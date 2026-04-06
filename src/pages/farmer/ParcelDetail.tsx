@@ -109,7 +109,7 @@ export default function ParcelDetail() {
     ? makeIrrigationDecision(
         latestHumidity, latestTemp, latestRain,
         parcel.crop_type, parcel.soil_type, parcel.area_hectares,
-        pump.flow_rate_lph
+        pump.flow_rate_lph, parcel.growth_stage || "vegetative"
       )
     : null;
 
