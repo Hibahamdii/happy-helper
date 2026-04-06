@@ -10,10 +10,15 @@ import FarmerDashboard from "./pages/farmer/FarmerDashboard";
 import Parcels from "./pages/farmer/Parcels";
 import ParcelDetail from "./pages/farmer/ParcelDetail";
 import IrrigationForecast from "./pages/farmer/IrrigationForecast";
+import IrrigationSchedule from "./pages/farmer/IrrigationSchedule";
+import IoTMonitoring from "./pages/farmer/IoTMonitoring";
+import Alerts from "./pages/farmer/Alerts";
+import FarmerProfile from "./pages/farmer/Profile";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminParcels from "./pages/admin/AdminParcels";
 import AdminStats from "./pages/admin/AdminStats";
+import AdminProfile from "./pages/admin/AdminProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,12 +60,18 @@ const App = () => (
             <Route path="/farmer/parcels" element={<ProtectedRoute><DashboardLayout><Parcels /></DashboardLayout></ProtectedRoute>} />
             <Route path="/farmer/parcels/:id" element={<ProtectedRoute><DashboardLayout><ParcelDetail /></DashboardLayout></ProtectedRoute>} />
             <Route path="/farmer/forecast" element={<ProtectedRoute><DashboardLayout><IrrigationForecast /></DashboardLayout></ProtectedRoute>} />
+            <Route path="/farmer/schedule" element={<ProtectedRoute><DashboardLayout><IrrigationSchedule /></DashboardLayout></ProtectedRoute>} />
+            <Route path="/farmer/iot" element={<ProtectedRoute><DashboardLayout><IoTMonitoring /></DashboardLayout></ProtectedRoute>} />
+            <Route path="/farmer/alerts" element={<ProtectedRoute><DashboardLayout><Alerts /></DashboardLayout></ProtectedRoute>} />
+            <Route path="/farmer/profile" element={<ProtectedRoute><DashboardLayout><FarmerProfile /></DashboardLayout></ProtectedRoute>} />
 
             {/* Admin routes */}
             <Route path="/admin/dashboard" element={<ProtectedRoute><DashboardLayout><AdminDashboard /></DashboardLayout></ProtectedRoute>} />
             <Route path="/admin/users" element={<ProtectedRoute><DashboardLayout><AdminUsers /></DashboardLayout></ProtectedRoute>} />
             <Route path="/admin/parcels" element={<ProtectedRoute><DashboardLayout><AdminParcels /></DashboardLayout></ProtectedRoute>} />
             <Route path="/admin/stats" element={<ProtectedRoute><DashboardLayout><AdminStats /></DashboardLayout></ProtectedRoute>} />
+            <Route path="/admin/alerts" element={<ProtectedRoute><DashboardLayout><Alerts /></DashboardLayout></ProtectedRoute>} />
+            <Route path="/admin/profile" element={<ProtectedRoute><DashboardLayout><AdminProfile /></DashboardLayout></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>
