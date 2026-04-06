@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      alerts: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          parcel_id: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          parcel_id?: string | null
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          parcel_id?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "parcels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       irrigation_logs: {
         Row: {
           created_at: string | null
@@ -55,48 +96,95 @@ export type Database = {
           },
         ]
       }
+      irrigation_schedules: {
+        Row: {
+          created_at: string | null
+          day_of_week: number
+          duration_minutes: number
+          id: string
+          is_active: boolean | null
+          parcel_id: string
+          start_time: string
+        }
+        Insert: {
+          created_at?: string | null
+          day_of_week: number
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean | null
+          parcel_id: string
+          start_time?: string
+        }
+        Update: {
+          created_at?: string | null
+          day_of_week?: number
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean | null
+          parcel_id?: string
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "irrigation_schedules_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "parcels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       parcels: {
         Row: {
           area_hectares: number
           created_at: string | null
           crop_type: string
           description: string | null
+          growth_stage: string | null
           id: string
           image_url: string | null
           location_lat: number
           location_lng: number
           name: string
           owner_id: string
+          season: string | null
           soil_type: string | null
           updated_at: string | null
+          water_source: string | null
         }
         Insert: {
           area_hectares?: number
           created_at?: string | null
           crop_type?: string
           description?: string | null
+          growth_stage?: string | null
           id?: string
           image_url?: string | null
           location_lat: number
           location_lng: number
           name: string
           owner_id: string
+          season?: string | null
           soil_type?: string | null
           updated_at?: string | null
+          water_source?: string | null
         }
         Update: {
           area_hectares?: number
           created_at?: string | null
           crop_type?: string
           description?: string | null
+          growth_stage?: string | null
           id?: string
           image_url?: string | null
           location_lat?: number
           location_lng?: number
           name?: string
           owner_id?: string
+          season?: string | null
           soil_type?: string | null
           updated_at?: string | null
+          water_source?: string | null
         }
         Relationships: []
       }
