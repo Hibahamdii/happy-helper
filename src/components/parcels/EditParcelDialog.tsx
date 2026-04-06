@@ -1,28 +1,28 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Plus, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import ParcelMap from "@/components/map/ParcelMap";
 import { SEASONS, SOIL_TYPES, GROWTH_STAGES, WATER_SOURCES, getCropsForSeason, isCropValidForSeason, isRainfed } from "@/lib/agronomic";
 
-interface AddParcelDialogProps {
-  onAdded: () => void;
+interface EditParcelDialogProps {
+  parcel: any;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUpdated: () => void;
 }
 
-export default function AddParcelDialog({ onAdded }: AddParcelDialogProps) {
-  const { user } = useAuth();
-  const [open, setOpen] = useState(false);
+export default function EditParcelDialog({ parcel, open, onOpenChange, onUpdated }: EditParcelDialogProps) {
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [lat, setLat] = useState<number | "">("");
-  const [lng, setLng] = useState<number | "">("");
+  const [lat, setLat] = useState<number>(0);
+  const [lng, setLng] = useState<number>(0);
   const [area, setArea] = useState<number>(1);
   const [cropType, setCropType] = useState("wheat");
   const [soilType, setSoilType] = useState("loam");
@@ -32,9 +32,24 @@ export default function AddParcelDialog({ onAdded }: AddParcelDialogProps) {
   const [pumpFlowRate, setPumpFlowRate] = useState<number>(1000);
 
   useEffect(() => {
+    if (parcel) {
+      setName(parcel.name || "");
+      setDescription(parcel.description || "");
+      setLat(parcel.location_lat);
+      setLng(parcel.location_lng);
+      setArea(parcel.area_hectares);
+      setCropType(parcel.crop_type);
+      setSoilType(parcel.soil_type || "loam");
+      setSeason(parcel.season || "spring");
+      setGrowthStage(parcel.growth_stage || "vegetative");
+      setWaterSource(parcel.water_source || "drip");
+    }
+  }, [parcel]);
+
+  useEffect(() => {
     if (!isCropValidForSeason(cropType, season)) {
-      const valid = getCropsForSeason(season);
-      if (valid.length > 0) setCropType(valid[0].value);
+      const validCrops = getCropsForSeason(season);
+      if (validCrops.length > 0) setCropType(validCrops[0].value);
     }
   }, [season]);
 
@@ -45,73 +60,46 @@ export default function AddParcelDialog({ onAdded }: AddParcelDialogProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || lat === "" || lng === "") return;
-
     setLoading(true);
     try {
-      const { data: parcel, error: parcelError } = await supabase
+      const { error } = await supabase
         .from("parcels")
-        .insert({
-          name, description,
-          location_lat: Number(lat), location_lng: Number(lng),
+        .update({
+          name, description, location_lat: lat, location_lng: lng,
           area_hectares: area, crop_type: cropType, soil_type: soilType,
           season, growth_stage: growthStage, water_source: waterSource,
-          owner_id: user.id,
         })
-        .select()
-        .single();
-      if (parcelError) throw parcelError;
+        .eq("id", parcel.id);
+      if (error) throw error;
 
-      // Create default sensors
-      const sensors = [
-        { parcel_id: parcel.id, type: "humidity", name: `Capteur Humidité - ${name}` },
-        { parcel_id: parcel.id, type: "temperature", name: `Capteur Température - ${name}` },
-        { parcel_id: parcel.id, type: "rain", name: `Capteur Pluie - ${name}` },
-      ];
-      const { error: sensorError } = await supabase.from("sensors").insert(sensors);
-      if (sensorError) throw sensorError;
-
-      // Create pump only if not rainfed
+      // Update pump flow rate if not rainfed
       if (!isRainfed(waterSource)) {
-        const { error: pumpError } = await supabase.from("pumps").insert({
-          parcel_id: parcel.id, name: `Pompe - ${name}`, flow_rate_lph: pumpFlowRate,
-        });
-        if (pumpError) throw pumpError;
+        await supabase.from("pumps").update({ flow_rate_lph: pumpFlowRate }).eq("parcel_id", parcel.id);
       }
 
-      toast.success("Parcelle ajoutée avec succès !");
-      setOpen(false);
-      resetForm();
-      onAdded();
+      toast.success("Parcelle mise à jour !");
+      onOpenChange(false);
+      onUpdated();
     } catch (err: any) {
-      toast.error(err.message || "Erreur lors de l'ajout");
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setName(""); setDescription(""); setLat(""); setLng("");
-    setArea(1); setCropType("wheat"); setSoilType("loam");
-    setSeason("spring"); setGrowthStage("vegetative");
-    setWaterSource("drip"); setPumpFlowRate(1000);
-  };
-
   const cropOptions = getCropsForSeason(season);
+  const cropInvalid = !isCropValidForSeason(cropType, season);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button><Plus className="h-4 w-4 mr-2" /> Ajouter une Parcelle</Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nouvelle Parcelle</DialogTitle>
+          <DialogTitle>Modifier la Parcelle</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Nom de la parcelle *</Label>
+              <Label>Nom *</Label>
               <Input value={name} onChange={e => setName(e.target.value)} required />
             </div>
             <div className="space-y-2">
@@ -125,9 +113,8 @@ export default function AddParcelDialog({ onAdded }: AddParcelDialogProps) {
             <Input value={description} onChange={e => setDescription(e.target.value)} />
           </div>
 
-          {/* Agronomic section */}
           <div className="rounded-lg border p-4 bg-primary/5">
-            <h3 className="font-semibold mb-3">🌿 Informations Agronomiques</h3>
+            <h3 className="font-semibold mb-3 flex items-center gap-2">🌿 Informations Agronomiques</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Saison *</Label>
@@ -146,6 +133,11 @@ export default function AddParcelDialog({ onAdded }: AddParcelDialogProps) {
                     {cropOptions.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {cropInvalid && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" /> Cette culture n'est pas recommandée en {season}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Type de Sol *</Label>
@@ -168,9 +160,8 @@ export default function AddParcelDialog({ onAdded }: AddParcelDialogProps) {
             </div>
           </div>
 
-          {/* Water source section */}
           <div className="rounded-lg border p-4 bg-blue-50/50">
-            <h3 className="font-semibold mb-3">💧 Source d'Eau & Irrigation</h3>
+            <h3 className="font-semibold mb-3 flex items-center gap-2">💧 Source d'Eau & Irrigation</h3>
             <div className="space-y-2">
               <Label>Source d'Eau *</Label>
               <Select value={waterSource} onValueChange={setWaterSource}>
@@ -185,36 +176,34 @@ export default function AddParcelDialog({ onAdded }: AddParcelDialogProps) {
                 <AlertTriangle className="h-4 w-4 text-accent mt-0.5" />
                 <div>
                   <p className="font-medium text-sm">Parcelle Pluviale</p>
-                  <p className="text-xs text-muted-foreground">Cette parcelle dépend des pluies. Aucune pompe requise. L'irrigation automatique n'est pas disponible.</p>
+                  <p className="text-xs text-muted-foreground">Cette parcelle dépend des pluies. Aucune pompe requise.</p>
                 </div>
               </div>
             ) : (
               <div className="mt-3 space-y-2">
-                <Label>Débit de la pompe (litres/heure)</Label>
-                <Input type="number" min="100" value={pumpFlowRate} onChange={e => setPumpFlowRate(Number(e.target.value))} required />
+                <Label>Débit de la pompe (L/h)</Label>
+                <Input type="number" min="100" value={pumpFlowRate} onChange={e => setPumpFlowRate(Number(e.target.value))} />
               </div>
             )}
           </div>
 
-          {/* Location section */}
           <div className="rounded-lg border p-4">
-            <h3 className="font-semibold mb-3">📍 Localisation</h3>
+            <h3 className="font-semibold mb-3 flex items-center gap-2">📍 Localisation</h3>
             <div className="grid grid-cols-2 gap-4 mb-3">
               <div className="space-y-2">
                 <Label>Latitude *</Label>
-                <Input type="number" step="0.0001" placeholder="Latitude" value={lat} onChange={e => setLat(Number(e.target.value))} required />
+                <Input type="number" step="0.0001" value={lat} onChange={e => setLat(Number(e.target.value))} required />
               </div>
               <div className="space-y-2">
                 <Label>Longitude *</Label>
-                <Input type="number" step="0.0001" placeholder="Longitude" value={lng} onChange={e => setLng(Number(e.target.value))} required />
+                <Input type="number" step="0.0001" value={lng} onChange={e => setLng(Number(e.target.value))} required />
               </div>
             </div>
-            <ParcelMap parcels={[]} height="200px" onMapClick={handleMapClick}
-              selectedPosition={lat !== "" && lng !== "" ? { lat: Number(lat), lng: Number(lng) } : null} />
+            <ParcelMap parcels={[]} height="200px" onMapClick={handleMapClick} selectedPosition={{ lat, lng }} />
           </div>
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Ajout en cours..." : "Ajouter la parcelle"}
+            {loading ? "Mise à jour..." : "Enregistrer les modifications"}
           </Button>
         </form>
       </DialogContent>

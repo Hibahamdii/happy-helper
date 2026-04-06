@@ -1,4 +1,5 @@
 import type { WeatherForecast } from "./weather";
+import { getGrowthStageMultiplier } from "./agronomic";
 
 // Crop coefficients (Kc) for different growth stages
 const CROP_KC: Record<string, number> = {
@@ -67,20 +68,22 @@ function effectiveRainfall(rainMm: number): number {
  * Make irrigation decision based on current sensor data
  */
 export function makeIrrigationDecision(
-  soilHumidity: number,     // % from humidity sensor
-  temperature: number,       // °C from temperature sensor
-  rainMm: number,           // mm from rain sensor (last 24h)
+  soilHumidity: number,
+  temperature: number,
+  rainMm: number,
   cropType: string,
   soilType: string,
   areaHectares: number,
-  pumpFlowRateLph: number   // liters per hour
+  pumpFlowRateLph: number,
+  growthStage: string = "vegetative"
 ): IrrigationDecision {
   const soil = SOIL_PROPERTIES[soilType] || SOIL_PROPERTIES.default;
   const kc = CROP_KC[cropType] || CROP_KC.default;
 
-  // Calculate ET0 using current temperature
+  // Calculate ET0 using current temperature, adjusted for growth stage
   const et0 = calculateET0(temperature - 5, temperature + 5);
-  const etc = et0 * kc;
+  const stageMultiplier = getGrowthStageMultiplier(growthStage);
+  const etc = et0 * kc * stageMultiplier;
 
   // Effective rainfall
   const effRain = effectiveRainfall(rainMm);
