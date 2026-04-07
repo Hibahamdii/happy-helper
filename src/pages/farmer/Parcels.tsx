@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MapPin, Trash2, Eye, Search, Pencil, Droplets, Leaf } from "lucide-react";
+import { MapPin, Trash2, Eye, Search, Pencil, Droplets } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import AddParcelDialog from "@/components/parcels/AddParcelDialog";
 import EditParcelDialog from "@/components/parcels/EditParcelDialog";
 import ParcelMap from "@/components/map/ParcelMap";
 import { SEASONS, GROWTH_STAGES, WATER_SOURCES, CROP_TYPES } from "@/lib/agronomic";
+import { getCropImage } from "@/lib/cropImages";
 
 const getLabel = (list: { value: string; label: string }[], val: string) =>
   list.find(i => i.value === val)?.label || val;
@@ -58,9 +59,8 @@ export default function Parcels() {
         <Input placeholder="Rechercher par nom, culture, description..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>Carte</CardTitle></CardHeader>
-        <CardContent>
+      <Card className="shadow-md">
+        <CardContent className="pt-6">
           <ParcelMap parcels={filtered} height="300px" onParcelClick={id => navigate(`/farmer/parcels/${id}`)} />
         </CardContent>
       </Card>
@@ -78,25 +78,31 @@ export default function Parcels() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(p => (
-            <Card key={p.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{p.name}</CardTitle>
-                  <div className="flex gap-1">
-                    <Badge variant="secondary">{getLabel(CROP_TYPES, p.crop_type)}</Badge>
+            <Card key={p.id} className="overflow-hidden hover:shadow-lg transition-shadow group">
+              {/* Crop Image Header */}
+              <div className="relative h-36 overflow-hidden">
+                <img
+                  src={getCropImage(p.crop_type)}
+                  alt={p.crop_type}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">{p.name}</h3>
+                    <p className="text-white/80 text-sm">{p.description || "Pas de description"}</p>
                   </div>
+                  <Badge className="bg-white/20 text-white backdrop-blur-sm border-none">
+                    {getLabel(CROP_TYPES, p.crop_type)}
+                  </Badge>
                 </div>
-                <CardDescription>{p.description || "Pas de description"}</CardDescription>
-              </CardHeader>
-              <CardContent>
+              </div>
+              <CardContent className="pt-4">
                 <div className="space-y-1.5 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Surface</span>
                     <span className="font-medium">{p.area_hectares} ha</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Sol</span>
-                    <span className="font-medium">{getLabel([...WATER_SOURCES], p.soil_type) || p.soil_type}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Saison</span>
@@ -107,12 +113,8 @@ export default function Parcels() {
                     <span className="font-medium">{getLabel(GROWTH_STAGES, p.growth_stage || "vegetative")}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Eau</span>
+                    <span className="text-muted-foreground flex items-center gap-1"><Droplets className="h-3 w-3" /> Eau</span>
                     <span className="font-medium">{getLabel(WATER_SOURCES, p.water_source || "drip")}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Position</span>
-                    <span className="font-medium text-xs">{p.location_lat?.toFixed(4)}, {p.location_lng?.toFixed(4)}</span>
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4">

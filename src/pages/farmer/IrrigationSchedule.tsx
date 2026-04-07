@@ -1,30 +1,45 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Calendar, Clock, Plus, Trash2, Droplets, AlertTriangle, Info } from "lucide-react";
-import { getIrrigationIntervalDays, isRainfed } from "@/lib/agronomic";
+import { Calendar, Clock, Droplets, AlertTriangle, Info, Sparkles, Loader2 } from "lucide-react";
+import { getIrrigationIntervalDays, isRainfed, GROWTH_STAGE_KC_MULTIPLIER } from "@/lib/agronomic";
+import { getCropImage } from "@/lib/cropImages";
+import heroImg from "@/assets/hero-irrigation.jpg";
 
 const DAYS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+
+// Best irrigation hours by growth stage
+function getOptimalStartTime(growthStage: string): string {
+  switch (growthStage) {
+    case "seeding": return "07:00";
+    case "vegetative": return "06:00";
+    case "flowering": return "05:30";
+    case "fruiting": return "06:00";
+    case "maturation": return "07:00";
+    case "harvest": return "08:00";
+    default: return "06:00";
+  }
+}
+
+// Duration based on growth stage multiplier and crop type
+function getOptimalDuration(growthStage: string, cropType: string): number {
+  const mult = GROWTH_STAGE_KC_MULTIPLIER[growthStage] || 1.0;
+  const base = cropType === "rice" ? 45 : cropType === "cucumber" ? 20 : 30;
+  return Math.round(base * mult);
+}
 
 export default function IrrigationSchedule() {
   const { user } = useAuth();
   const [parcels, setParcels] = useState<any[]>([]);
   const [selectedParcelId, setSelectedParcelId] = useState("");
   const [schedules, setSchedules] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  // New schedule form
-  const [newDay, setNewDay] = useState("1");
-  const [newTime, setNewTime] = useState("06:00");
-  const [newDuration, setNewDuration] = useState(30);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => { if (user) loadParcels(); }, [user]);
   useEffect(() => { if (selectedParcelId) loadSchedules(); }, [selectedParcelId]);
@@ -47,20 +62,42 @@ export default function IrrigationSchedule() {
   const selectedParcel = parcels.find(p => p.id === selectedParcelId);
   const parcelIsRainfed = selectedParcel && isRainfed(selectedParcel.water_source || "drip");
   const irrigationInterval = selectedParcel ? getIrrigationIntervalDays(selectedParcel.crop_type) : 3;
+  const maxIrrigationsPerWeek = Math.floor(7 / irrigationInterval);
 
-  const addSchedule = async () => {
-    if (!selectedParcelId) return;
-    setLoading(true);
-    const { error } = await supabase.from("irrigation_schedules").insert({
+  const generateSchedule = useCallback(async () => {
+    if (!selectedParcel) return;
+    setGenerating(true);
+
+    // Delete existing schedules for this parcel
+    await supabase.from("irrigation_schedules").delete().eq("parcel_id", selectedParcelId);
+
+    const interval = getIrrigationIntervalDays(selectedParcel.crop_type);
+    const startTime = getOptimalStartTime(selectedParcel.growth_stage || "vegetative");
+    const duration = getOptimalDuration(selectedParcel.growth_stage || "vegetative", selectedParcel.crop_type);
+
+    // Generate days spaced by interval, starting from Monday (1)
+    const scheduleDays: number[] = [];
+    let day = 1; // Monday
+    while (scheduleDays.length < maxIrrigationsPerWeek && day <= 7) {
+      scheduleDays.push(day % 7); // convert to 0-6 (Sunday=0)
+      day += interval;
+    }
+
+    const inserts = scheduleDays.map(d => ({
       parcel_id: selectedParcelId,
-      day_of_week: parseInt(newDay),
-      start_time: newTime,
-      duration_minutes: newDuration,
-    });
+      day_of_week: d,
+      start_time: startTime,
+      duration_minutes: duration,
+      is_active: true,
+    }));
+
+    const { error } = await supabase.from("irrigation_schedules").insert(inserts);
     if (error) toast.error(error.message);
-    else { toast.success("Planification ajoutée !"); loadSchedules(); }
-    setLoading(false);
-  };
+    else toast.success(`Planning généré : ${inserts.length} irrigations/semaine`);
+
+    await loadSchedules();
+    setGenerating(false);
+  }, [selectedParcel, selectedParcelId, maxIrrigationsPerWeek]);
 
   const toggleSchedule = async (id: string, isActive: boolean) => {
     await supabase.from("irrigation_schedules").update({ is_active: !isActive }).eq("id", id);
@@ -73,24 +110,51 @@ export default function IrrigationSchedule() {
     loadSchedules();
   };
 
-  // Check if too many irrigations per week for this crop
   const activeDays = schedules.filter(s => s.is_active).length;
-  const maxIrrigationsPerWeek = Math.floor(7 / irrigationInterval);
   const tooManyIrrigations = activeDays > maxIrrigationsPerWeek;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-3">
-          <Calendar className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold">Planning d'Irrigation</h1>
+      {/* Hero */}
+      <div className="relative rounded-2xl overflow-hidden h-40">
+        <img
+          src={selectedParcel ? getCropImage(selectedParcel.crop_type) : heroImg}
+          alt="Schedule"
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/30 flex items-center px-8">
+          <div>
+            <div className="flex items-center gap-3">
+              <Calendar className="h-7 w-7 text-primary-foreground" />
+              <h1 className="text-3xl font-bold text-primary-foreground">Planning d'Irrigation</h1>
+            </div>
+            <p className="text-primary-foreground/80 mt-1">Généré automatiquement selon le type de culture et le stade de croissance</p>
+          </div>
         </div>
+      </div>
+
+      {/* Parcel Selector */}
+      <div className="flex items-center gap-4 flex-wrap">
         <Select value={selectedParcelId} onValueChange={setSelectedParcelId}>
-          <SelectTrigger className="w-[250px]"><SelectValue placeholder="Choisir une parcelle" /></SelectTrigger>
+          <SelectTrigger className="w-[280px]"><SelectValue placeholder="Choisir une parcelle" /></SelectTrigger>
           <SelectContent>
-            {parcels.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+            {parcels.map(p => (
+              <SelectItem key={p.id} value={p.id}>
+                <div className="flex items-center gap-2">
+                  <img src={getCropImage(p.crop_type)} className="h-5 w-5 rounded object-cover" alt="" />
+                  {p.name}
+                </div>
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
+
+        {!parcelIsRainfed && selectedParcel && (
+          <Button onClick={generateSchedule} disabled={generating} className="gap-2">
+            {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            Générer le Planning
+          </Button>
+        )}
       </div>
 
       {parcelIsRainfed && (
@@ -99,7 +163,7 @@ export default function IrrigationSchedule() {
             <AlertTriangle className="h-5 w-5 text-accent" />
             <div>
               <p className="font-semibold">Parcelle Pluviale</p>
-              <p className="text-sm text-muted-foreground">Cette parcelle dépend des pluies. Aucune pompe requise. L'irrigation automatique n'est pas disponible.</p>
+              <p className="text-sm text-muted-foreground">Cette parcelle dépend des pluies. L'irrigation automatique n'est pas disponible.</p>
             </div>
           </CardContent>
         </Card>
@@ -113,26 +177,27 @@ export default function IrrigationSchedule() {
               <div>
                 <p className="font-semibold">Recommandation pour {selectedParcel.crop_type}</p>
                 <p className="text-sm text-muted-foreground">
-                  Irriguer tous les <strong>{irrigationInterval} jours</strong> maximum ({maxIrrigationsPerWeek} fois/semaine).
-                  {tooManyIrrigations && <span className="text-destructive ml-1">⚠️ Trop d'irrigations planifiées !</span>}
+                  Irriguer tous les <strong>{irrigationInterval} jours</strong> ({maxIrrigationsPerWeek} fois/semaine) •
+                  Durée optimale: <strong>{getOptimalDuration(selectedParcel.growth_stage || "vegetative", selectedParcel.crop_type)} min</strong>
+                  {tooManyIrrigations && <span className="text-destructive ml-1">⚠️ Trop d'irrigations !</span>}
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Weekly view */}
-          <Card>
+          {/* Weekly Visual */}
+          <Card className="shadow-md">
             <CardHeader>
               <CardTitle>Vue Hebdomadaire</CardTitle>
-              <CardDescription>Planifiez les jours et heures d'irrigation</CardDescription>
+              <CardDescription>Le planning est généré automatiquement selon les règles agronomiques</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-7 gap-2 mb-6">
+              <div className="grid grid-cols-7 gap-2">
                 {DAYS.map((day, idx) => {
                   const daySchedules = schedules.filter(s => s.day_of_week === idx);
                   const hasSchedule = daySchedules.length > 0;
                   return (
-                    <div key={idx} className={`rounded-lg border p-3 text-center min-h-[120px] ${hasSchedule ? "bg-primary/5 border-primary/30" : ""}`}>
+                    <div key={idx} className={`rounded-xl border p-3 text-center min-h-[120px] transition-colors ${hasSchedule ? "bg-primary/5 border-primary/30 shadow-sm" : "bg-muted/30"}`}>
                       <p className="font-medium text-sm mb-2">{day.slice(0, 3)}</p>
                       {daySchedules.map(s => (
                         <div key={s.id} className="mb-1">
@@ -143,48 +208,27 @@ export default function IrrigationSchedule() {
                           <p className="text-xs text-muted-foreground">{s.duration_minutes} min</p>
                         </div>
                       ))}
-                      {!hasSchedule && <p className="text-xs text-muted-foreground mt-4">—</p>}
+                      {!hasSchedule && <p className="text-xs text-muted-foreground mt-6">—</p>}
                     </div>
                   );
                 })}
               </div>
-
-              {/* Add schedule form */}
-              <div className="flex items-end gap-4 flex-wrap border-t pt-4">
-                <div className="space-y-2">
-                  <Label>Jour</Label>
-                  <Select value={newDay} onValueChange={setNewDay}>
-                    <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {DAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Heure</Label>
-                  <Input type="time" value={newTime} onChange={e => setNewTime(e.target.value)} className="w-[130px]" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Durée (min)</Label>
-                  <Input type="number" min={5} value={newDuration} onChange={e => setNewDuration(Number(e.target.value))} className="w-[100px]" />
-                </div>
-                <Button onClick={addSchedule} disabled={loading}>
-                  <Plus className="h-4 w-4 mr-2" /> Ajouter
-                </Button>
-              </div>
             </CardContent>
           </Card>
 
-          {/* Schedule list */}
-          <Card>
-            <CardHeader><CardTitle>Toutes les Planifications</CardTitle></CardHeader>
+          {/* Schedule List */}
+          <Card className="shadow-md">
+            <CardHeader><CardTitle>Détails des Planifications</CardTitle></CardHeader>
             <CardContent>
               {schedules.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">Aucune planification. Ajoutez-en une ci-dessus.</p>
+                <div className="text-center py-8">
+                  <Sparkles className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
+                  <p className="text-muted-foreground">Cliquez sur "Générer le Planning" pour créer automatiquement le programme d'irrigation.</p>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {schedules.map(s => (
-                    <div key={s.id} className="flex items-center justify-between p-3 rounded-lg border">
+                    <div key={s.id} className="flex items-center justify-between p-3 rounded-xl border hover:bg-muted/50 transition-colors">
                       <div className="flex items-center gap-3">
                         <Droplets className="h-4 w-4 text-primary" />
                         <div>
@@ -194,8 +238,8 @@ export default function IrrigationSchedule() {
                       </div>
                       <div className="flex items-center gap-3">
                         <Switch checked={s.is_active} onCheckedChange={() => toggleSchedule(s.id, s.is_active)} />
-                        <Button size="icon" variant="ghost" onClick={() => deleteSchedule(s.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
+                        <Button size="sm" variant="ghost" onClick={() => deleteSchedule(s.id)} className="text-destructive hover:text-destructive">
+                          ✕
                         </Button>
                       </div>
                     </div>
