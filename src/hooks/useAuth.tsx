@@ -21,35 +21,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchRole = async (userId: string) => {
-    const { data } = await supabase.rpc("get_user_role", { _user_id: userId });
-    setRole(data || null);
+    try {
+      const { data } = await supabase.rpc("get_user_role", { _user_id: userId });
+      setRole(data || null);
+    } catch {
+      setRole(null);
+    }
   };
 
   useEffect(() => {
-    let initialLoad = true;
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchRole(session.user.id);
-        } else {
-          setRole(null);
-        }
-        if (!initialLoad) setLoading(false);
-      }
-    );
-
+    // 1. Restore session from storage first
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         await fetchRole(session.user.id);
       }
-      initialLoad = false;
       setLoading(false);
     });
+
+    // 2. Listen for subsequent auth changes (sign in, sign out, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          // Use setTimeout to avoid Supabase deadlock warning
+          setTimeout(async () => {
+            await fetchRole(session.user.id);
+          }, 0);
+        } else {
+          setRole(null);
+        }
+      }
+    );
 
     return () => subscription.unsubscribe();
   }, []);
