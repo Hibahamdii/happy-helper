@@ -23,9 +23,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchRole = async (userId: string) => {
     try {
       const { data } = await supabase.rpc("get_user_role", { _user_id: userId });
-      setRole(data || null);
+      setRole(data || "farmer"); // default to farmer if no role found
     } catch {
-      setRole(null);
+      setRole("farmer");
     }
   };
 
@@ -40,13 +40,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    // 2. Listen for subsequent auth changes (sign in, sign out, token refresh)
+    // 2. Listen for subsequent auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          // Use setTimeout to avoid Supabase deadlock warning
           setTimeout(async () => {
             await fetchRole(session.user.id);
           }, 0);
