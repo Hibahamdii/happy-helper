@@ -21,35 +21,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchRole = async (userId: string) => {
-    const { data } = await supabase.rpc("get_user_role", { _user_id: userId });
-    setRole(data || null);
+    try {
+      const { data } = await supabase.rpc("get_user_role", { _user_id: userId });
+      setRole(data || "farmer"); // default to farmer if no role found
+    } catch {
+      setRole("farmer");
+    }
   };
 
   useEffect(() => {
-    let initialLoad = true;
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchRole(session.user.id);
-        } else {
-          setRole(null);
-        }
-        if (!initialLoad) setLoading(false);
-      }
-    );
-
+    // 1. Restore session from storage first
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         await fetchRole(session.user.id);
       }
-      initialLoad = false;
       setLoading(false);
     });
+
+    // 2. Listen for subsequent auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          setTimeout(async () => {
+            await fetchRole(session.user.id);
+          }, 0);
+        } else {
+          setRole(null);
+        }
+      }
+    );
 
     return () => subscription.unsubscribe();
   }, []);

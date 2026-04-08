@@ -32,7 +32,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function RoleRouter() {
   const { role, loading } = useAuth();
-  if (loading || role === null) return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Chargement...</div>;
+  if (loading) return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Chargement...</div>;
   if (role === "admin") return <Navigate to="/admin/dashboard" replace />;
   return <Navigate to="/farmer/dashboard" replace />;
 }
