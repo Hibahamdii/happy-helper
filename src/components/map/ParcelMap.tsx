@@ -117,5 +117,5 @@ export default function ParcelMap({
     };
   }, [selectedPosition]);
 
-  return <div ref={mapRef} style={{ height, width: "100%" }} className="rounded-lg border" />;
+  return <div ref={mapRef} style={{ height, width: "100%", zIndex: 0, position: "relative" }} className="rounded-lg border" />;
 }
